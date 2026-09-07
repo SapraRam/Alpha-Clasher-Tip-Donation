@@ -9,6 +9,7 @@ import {
   Flame,
   Globe,
   Image as ImageIcon,
+  Instagram,
   Lock,
   Mail,
   MessageSquare,
@@ -26,8 +27,6 @@ import {
   TrendingUp,
   Upload,
   User,
-  Users,
-  Video,
   Volume2,
   X,
   Youtube,
@@ -36,7 +35,7 @@ import {
 import { truncateTitle } from "@/lib/youtube/api";
 import type { YouTubeChannelResult } from "@/lib/youtube/types";
 
-const portraitImage = "/images/alpha-ByD42gCA.jpg";
+const portraitImage = "/images/alpha.jpg";
 
 interface TierInfo {
   name: string;
@@ -91,7 +90,7 @@ const TIERS: Record<TierLevel, TierInfo> = {
     name: "Legendary",
     min: 10000,
     maxChars: 300,
-    color: "#eab308",
+    color: "#ffc400",
     accent: "#fde047",
     perk: "Golden Takeover + VIP Pin",
     tts: true,
@@ -100,7 +99,14 @@ const TIERS: Record<TierLevel, TierInfo> = {
 
 const PRESETS = [40, 100, 500, 1000, 2000, 10000];
 
-const HYPE_TAGS = ["🔥 GG WP!", "🎯 Clutch God", "⚡ Beast Mode", "🍕 Snack Fund"];
+const HYPE_TAGS = ["🔥 GG WP!", "💎 Clutch God", "⚡ Beast Mode", "🍕 Snack Fund"];
+
+const SOCIALS = [
+  { label: "YouTube", href: "https://www.youtube.com/@AlphaClasher", kind: "youtube" as const },
+  { label: "Instagram", href: "https://www.instagram.com/alpha_clasher/", kind: "instagram" as const },
+  { label: "X", href: "https://x.com/alpha__clasher", kind: "x" as const },
+  { label: "Discord", href: "https://discord.com/invite/alphaclasher", kind: "discord" as const },
+];
 
 // Curated popular Indian stream memes & GIFs
 const MEME_PRESETS = [
@@ -179,10 +185,26 @@ function formatShort(n: number) {
   return n >= 1000 ? `${n / 1000}k` : `${n}`;
 }
 
+function XIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden>
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.726-8.835L1.254 2.25H8.08l4.253 5.622L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+    </svg>
+  );
+}
+
+function DiscordIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden>
+      <path d="M20.317 4.37a19.79 19.79 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.249a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.249.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.331c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.095 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.095 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
+    </svg>
+  );
+}
+
 export default function TipPage({ youtube }: { youtube: YouTubeChannelResult }) {
   const channel = youtube.channel;
 
-  const [amount, setAmount] = useState(100);
+  const [amount, setAmount] = useState(10000);
   const [name, setName] = useState("");
   const [message, setMessage] = useState("");
   const [email, setEmail] = useState("");
@@ -365,154 +387,162 @@ export default function TipPage({ youtube }: { youtube: YouTubeChannelResult }) 
   };
 
   const channelName = channel?.channelTitle ?? "Alpha Clasher";
+  const isLive = Boolean(channel?.liveStream);
 
   const statCards = [
     {
-      icon: Users,
+      icon: Youtube,
+      iconClass: "text-red-500",
       k: "Subscribers",
-      v: channel?.subscriberLabel ?? "107K+",
+      v: channel?.subscriberLabel ?? "1.6M",
       href: "https://www.youtube.com/@AlphaClasher",
+      live: false,
     },
     {
-      icon: Video,
+      icon: Play,
+      iconClass: "text-white/70",
       k: "Latest Video",
-      v: channel?.latestVideo ? truncateTitle(channel.latestVideo.title) : "Stream Highlights",
+      v: channel?.latestVideo ? truncateTitle(channel.latestVideo.title, 18) : "ALPHA TROLLING 😁",
       href: channel?.latestVideo?.watchUrl,
+      live: false,
     },
     {
       icon: Radio,
-      k: "Broadcast",
-      v: channel?.liveStream ? "Live Now 🔴" : "Standby ⚡",
+      iconClass: "text-emerald-400",
+      k: "Live Now",
+      v: isLive ? "On Air" : "Standby ⚡",
       href: channel?.liveStream?.watchUrl,
+      live: true,
     },
   ];
 
   return (
     <main
       data-tier={tierKey}
-      className="tier-theme starry-sky relative flex min-h-dvh w-full items-center justify-center p-3 sm:p-5 lg:p-6"
+      className="tier-theme relative h-dvh w-full overflow-hidden bg-black"
     >
-      {/* Ambient soft glow */}
+      {/* Full-page cinematic background — one image across the whole layout */}
+      <div className="pointer-events-none absolute inset-0 z-0">
+        <img
+          src={portraitImage}
+          alt=""
+          className="hero-portrait"
+        />
+
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/35 to-black/15" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/30 via-transparent to-black/75" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_36%,rgba(0,0,0,0.5)_100%)]" />
+
+        <div className="absolute bottom-[22%] left-[28%] h-72 w-72 rounded-full bg-[#ffc400]/25 blur-[110px]" />
+        <div className="absolute top-[18%] right-[18%] h-40 w-40 rounded-full bg-[#ffc400]/10 blur-[80px]" />
+
+        <span className="gold-spark top-[22%] left-[14%] h-1 w-1" />
+        <span className="gold-spark top-[38%] left-[8%] h-1.5 w-1.5 [animation-delay:0.6s]" />
+        <span className="gold-spark top-[28%] right-[22%] h-1 w-1 [animation-delay:1.2s]" />
+        <span className="gold-spark bottom-[42%] left-[18%] h-1 w-1 [animation-delay:1.8s]" />
+        <span className="gold-spark top-[16%] right-[32%] h-0.5 w-0.5 [animation-delay:2.1s]" />
+        <span className="gold-spark bottom-[36%] right-[28%] h-1.5 w-1.5 [animation-delay:0.9s]" />
+      </div>
+
+      {/* Ambient tier glow behind the floating panel */}
       <div
-        className="tier-ambient pointer-events-none absolute z-[1] h-[30rem] w-[30rem] rounded-full blur-[140px] opacity-25 transition-all duration-700"
+        className="pointer-events-none absolute z-[1] h-[28rem] w-[28rem] rounded-full blur-[140px] opacity-30 transition-all duration-700 lg:right-[8%] lg:top-1/2 lg:-translate-y-1/2"
         style={{ backgroundColor: "var(--tier)" }}
       />
 
-      {/* Main Clean Console Card */}
-      <div
-        className={`console-glow relative z-10 mx-auto flex w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-black/70 backdrop-blur-3xl shadow-2xl transition-all duration-300 lg:rounded-[2rem] ${
-          tierPulse ? "tier-pulse" : ""
-        }`}
-      >
-        {/* Glow edge tracers */}
-        <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden rounded-[inherit]">
-          <div className="tier-edge-glow tier-edge-glow-left" />
-          <div className="tier-edge-glow tier-edge-glow-top" />
-          <div className="tier-edge-glow tier-edge-glow-right" />
-          <div className="tier-edge-glow tier-edge-glow-bottom" />
-        </div>
-
-        <div className="relative z-10 grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-12">
-          {/* LEFT SIDE: Creator Showcase */}
-          <section className="relative flex min-h-[320px] flex-col justify-end overflow-hidden p-6 lg:col-span-6 lg:min-h-[660px] lg:p-8">
-            {/* Full-bleed Portrait with smooth dark vignette */}
-            <div className="absolute inset-0 z-0">
-              <img
-                src={portraitImage}
-                alt="Alpha Clasher creator portrait"
-                className="h-full w-full object-cover filter brightness-95"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-black/30" />
-              <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-transparent to-transparent hidden lg:block" />
-            </div>
-
-            {/* Top Bar for Creator Card */}
-            <div className="absolute top-6 left-6 right-6 z-10 flex items-center justify-between">
+      <div className="relative z-10 flex h-full min-h-0 w-full flex-col lg:flex-row">
+        {/* LEFT SIDE: creator copy over the shared background */}
+        <section className="relative flex min-h-0 w-full flex-[1] flex-col justify-end px-6 pb-10 pt-10 sm:px-10 sm:pb-12 lg:w-[54%] lg:flex-none lg:pl-16 lg:pr-10 lg:pb-16">
+          <div className="relative z-10 max-w-xl space-y-3 lg:space-y-4">
+            <div>
               <div className="flex items-center gap-2">
-                <span className="flex items-center gap-1.5 rounded-full border border-red-500/40 bg-red-500/10 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-red-400 backdrop-blur-md">
-                  <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
-                  Live Stream Ready
-                </span>
+                <h1 className="font-display text-3xl font-extrabold tracking-tight text-white sm:text-4xl lg:text-[3.25rem]">
+                  {channelName}
+                </h1>
               </div>
-
-              <a
-                href="https://www.youtube.com/@AlphaClasher"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 rounded-full border border-white/10 bg-black/40 px-3 py-1 text-xs font-semibold text-white/80 backdrop-blur-md transition-colors hover:border-primary/50 hover:text-white"
-              >
-                <Youtube className="h-3.5 w-3.5 text-red-500" />
-                <span>@alphaclasher</span>
-                <ExternalLink className="h-3 w-3 text-white/40" />
-              </a>
-            </div>
-
-            {/* Creator details overlay */}
-            <div className="relative z-10 space-y-3 pt-12">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h1 className="font-display text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-white">
-                    {channelName}
-                  </h1>
-                  <span
-                    className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/20 text-accent border border-primary/40"
-                    title="Verified Creator"
-                  >
-                    <Check className="h-3 w-3 text-accent stroke-[3]" />
-                  </span>
-                </div>
-                <p className="mt-1 text-xs text-white/70 sm:text-sm">
-                  YouTube Gaming Partner • Competitive Customs & Scrims
-                </p>
-              </div>
-
-              <p className="max-w-md text-xs sm:text-sm text-white/80 leading-relaxed">
-                Send a live on-screen tip with your custom message, Indian memes & GIFs (₹100+), or
-                live voice notes (₹1000+) on Alpha Clasher&apos;s stream!
+              <p className="mt-1.5 text-xs text-[#a0a0a0] sm:text-sm">
+                YouTube Gaming Partner • Competitive Customs & Scrims
               </p>
+            </div>
 
-              {/* Clean Frosted Stat Cards */}
-              <div className="grid grid-cols-3 gap-2 pt-1 sm:gap-3">
-                {statCards.map((s) => {
-                  const card = (
-                    <div className="rounded-xl border border-white/10 bg-black/50 p-3 backdrop-blur-md transition-all hover:border-primary/40 hover:bg-black/60">
-                      <s.icon className="h-3.5 w-3.5 text-primary" />
-                      <div className="mt-1.5 truncate font-display text-xs sm:text-sm font-bold text-white">
-                        {s.v}
-                      </div>
-                      <div className="text-[9px] font-semibold uppercase tracking-wider text-white/50">
-                        {s.k}
-                      </div>
+            <p className="max-w-md text-xs leading-relaxed text-white/85 sm:text-sm">
+              Send a live on-screen tip with your custom message, Indian memes & GIFs (₹100+), or
+              live voice notes (₹1000+) on Alpha Clasher&apos;s stream!
+            </p>
+
+            <div className="grid grid-cols-3 gap-2 pt-1 sm:gap-2.5">
+              {statCards.map((s) => {
+                const card = (
+                  <div className="rounded-lg border border-white/10 bg-black/45 px-2.5 py-2 backdrop-blur-md transition-all hover:border-[#ffc400]/35 hover:bg-black/55">
+                    {s.live ? (
+                      <span className="relative mt-0.5 flex h-2 w-2">
+                        <span className="live-pulse absolute inline-flex h-full w-full rounded-full bg-emerald-400" />
+                        <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+                      </span>
+                    ) : (
+                      <s.icon className={`h-3.5 w-3.5 ${s.iconClass}`} />
+                    )}
+                    <div className="mt-1.5 truncate font-display text-[11px] font-bold text-white sm:text-sm">
+                      {s.v}
                     </div>
-                  );
+                    <div className="text-[9px] font-semibold uppercase tracking-wider text-white/50">
+                      {s.k}
+                    </div>
+                  </div>
+                );
 
-                  return s.href ? (
-                    <a
-                      key={s.k}
-                      href={s.href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block"
-                    >
-                      {card}
-                    </a>
-                  ) : (
-                    <div key={s.k}>{card}</div>
-                  );
-                })}
+                return s.href ? (
+                  <a
+                    key={s.k}
+                    href={s.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block"
+                  >
+                    {card}
+                  </a>
+                ) : (
+                  <div key={s.k}>{card}</div>
+                );
+              })}
+            </div>
+
+            <div className="flex flex-wrap items-end justify-between gap-3 pt-2">
+              <p className="font-display text-sm italic tracking-wide text-white/70">
+                Same Games. Different Energy.
+              </p>
+              <div className="flex items-center gap-2">
+                {SOCIALS.map((social) => (
+                  <a
+                    key={social.label}
+                    href={social.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={social.label}
+                    className="grid h-8 w-8 place-items-center rounded-full border border-white/10 bg-black/40 text-white/70 transition-all hover:-translate-y-0.5 hover:border-[#ffc400]/40 hover:text-[#ffc400]"
+                  >
+                    {social.kind === "youtube" && <Youtube className="h-3.5 w-3.5" />}
+                    {social.kind === "instagram" && <Instagram className="h-3.5 w-3.5" />}
+                    {social.kind === "x" && <XIcon className="h-3.5 w-3.5" />}
+                    {social.kind === "discord" && <DiscordIcon className="h-3.5 w-3.5" />}
+                  </a>
+                ))}
               </div>
             </div>
-          </section>
+          </div>
+        </section>
 
-          {/* RIGHT SIDE: Clean, Premium Donation Console */}
-          <section className="relative flex flex-col justify-between border-t border-white/10 p-6 lg:col-span-6 lg:border-l lg:border-t-0 lg:p-8">
+        {/* RIGHT SIDE: the only major card — floating glass panel */}
+        <section className="relative flex min-h-0 w-full flex-[1.15] items-center justify-center overflow-hidden px-4 py-4 sm:px-6 lg:h-full lg:w-[46%] lg:flex-none lg:px-6 lg:py-6 lg:pr-10">
+          <div
+            className={`tip-panel relative flex max-h-full w-full max-w-[34rem] flex-col justify-between rounded-[2rem] p-5 sm:p-7 ${
+              tierPulse ? "tier-pulse" : ""
+            }`}
+          >
             <div className="space-y-4">
               {/* Header Bar */}
               <div className="flex items-center justify-between">
                 <div>
-                  <span className="font-display text-[10px] font-bold uppercase tracking-[0.2em] text-white/50">
-                    Stream Support Console
-                  </span>
                   <div className="mt-0.5 flex items-center gap-1.5 text-xs font-semibold text-white/90">
                     <span
                       className="h-2 w-2 rounded-full"
@@ -543,7 +573,7 @@ export default function TipPage({ youtube }: { youtube: YouTubeChannelResult }) 
                     type="button"
                     onClick={() => step(-1)}
                     aria-label="Decrease tip"
-                    className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/5 text-white/70 transition-all hover:border-primary hover:text-white active:scale-95"
+                    className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/15 bg-white/5 text-white/70 transition-all hover:-translate-y-0.5 hover:border-primary hover:text-white active:scale-95"
                   >
                     <Minus className="h-4 w-4" />
                   </button>
@@ -571,7 +601,7 @@ export default function TipPage({ youtube }: { youtube: YouTubeChannelResult }) 
                     type="button"
                     onClick={() => step(1)}
                     aria-label="Increase tip"
-                    className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/5 text-white/70 transition-all hover:border-primary hover:text-white active:scale-95"
+                    className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/15 bg-white/5 text-white/70 transition-all hover:-translate-y-0.5 hover:border-primary hover:text-white active:scale-95"
                   >
                     <Plus className="h-4 w-4" />
                   </button>
@@ -588,8 +618,8 @@ export default function TipPage({ youtube }: { youtube: YouTubeChannelResult }) 
                         onClick={() => setAmount(p)}
                         className={`rounded-lg py-2 text-xs font-bold transition-all active:scale-95 ${
                           active
-                            ? "bg-primary text-black shadow-md font-extrabold"
-                            : "border border-white/10 bg-white/5 text-white/70 hover:border-white/20 hover:text-white"
+                            ? "bg-primary text-black font-extrabold shadow-[0_0_18px_color-mix(in_oklab,var(--tier)_55%,transparent)]"
+                            : "border border-white/10 bg-white/5 text-white/70 hover:-translate-y-0.5 hover:border-white/20 hover:text-white"
                         }`}
                       >
                         ₹{formatShort(p)}
@@ -609,12 +639,12 @@ export default function TipPage({ youtube }: { youtube: YouTubeChannelResult }) 
                       }
                       setIsMemeModalOpen(true);
                     }}
-                    className={`flex items-center justify-center gap-1.5 rounded-lg py-1.5 px-2 text-[11px] font-bold transition-all ${
+                    className={`flex items-center justify-center gap-1.5 rounded-lg py-2 px-2 text-[11px] font-bold transition-all hover:-translate-y-0.5 ${
                       isMemeUnlocked
                         ? selectedMeme
                           ? selectedMeme.is_gif
                             ? "border border-pink-500 bg-pink-500/20 text-pink-300 shadow-[0_0_12px_rgba(236,72,153,0.3)]"
-                            : "border border-blue-500 bg-blue-500/20 text-blue-300"
+                            : "border border-primary/50 bg-primary/15 text-primary"
                           : "border border-white/15 bg-white/5 text-white/90 hover:border-primary/50 hover:bg-white/10"
                         : "border border-white/5 bg-black/40 text-white/40 hover:text-white/70"
                     }`}
@@ -622,7 +652,7 @@ export default function TipPage({ youtube }: { youtube: YouTubeChannelResult }) 
                     {isMemeUnlocked ? (
                       <>
                         <ImageIcon
-                          className={`h-3.5 w-3.5 ${selectedMeme?.is_gif ? "text-pink-400" : "text-blue-400"}`}
+                          className={`h-3.5 w-3.5 ${selectedMeme?.is_gif ? "text-pink-400" : "text-primary"}`}
                         />
                         <span className="truncate">
                           {selectedMeme
@@ -649,7 +679,7 @@ export default function TipPage({ youtube }: { youtube: YouTubeChannelResult }) 
                       }
                       setIsVoiceModalOpen(true);
                     }}
-                    className={`flex items-center justify-center gap-1.5 rounded-lg py-1.5 px-2 text-[11px] font-bold transition-all ${
+                    className={`flex items-center justify-center gap-1.5 rounded-lg py-2 px-2 text-[11px] font-bold transition-all hover:-translate-y-0.5 ${
                       isVoiceUnlocked
                         ? selectedVoice
                           ? "border border-orange-500 bg-orange-500/20 text-orange-300"
@@ -726,7 +756,7 @@ export default function TipPage({ youtube }: { youtube: YouTubeChannelResult }) 
                         key={tag}
                         type="button"
                         onClick={() => addHypeTag(tag)}
-                        className="rounded-md border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-semibold text-white/70 transition-colors hover:border-primary/50 hover:bg-white/10 hover:text-white active:scale-95"
+                        className="rounded-md border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-semibold text-white/70 transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:bg-white/10 hover:text-white active:scale-95"
                       >
                         {tag}
                       </button>
@@ -808,10 +838,10 @@ export default function TipPage({ youtube }: { youtube: YouTubeChannelResult }) 
                 type="button"
                 disabled={!canSend}
                 onClick={() => setIsSuccess(true)}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 font-display text-sm font-black uppercase tracking-wider text-black shadow-[0_0_20px_var(--tier)] transition-all hover:brightness-110 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40"
+                className="tier-cta group flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 font-display text-sm font-black uppercase tracking-wider text-black transition-all hover:-translate-y-0.5 hover:brightness-110 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0"
               >
                 <span>Send ₹{amount.toLocaleString("en-IN")} Tip to Stream</span>
-                <ArrowRight className="h-4 w-4" />
+                <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
               </button>
 
               <div className="flex items-center justify-center gap-3 text-[10px] font-medium text-white/40">
@@ -825,8 +855,8 @@ export default function TipPage({ youtube }: { youtube: YouTubeChannelResult }) 
                 <span>Secure</span>
               </div>
             </div>
-          </section>
-        </div>
+          </div>
+        </section>
       </div>
 
       {/* ENHANCED LARGE MEME / GIF PICKER MODAL (100+) WITH LIVE STREAM PREVIEW & API FETCHING */}

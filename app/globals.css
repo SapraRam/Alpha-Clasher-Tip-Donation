@@ -15,6 +15,7 @@
 
   --font-display: var(--font-family-display), ui-sans-serif, system-ui, sans-serif;
   --font-sans: var(--font-family-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-hero: var(--font-family-hero), ui-sans-serif, system-ui, sans-serif;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -59,26 +60,26 @@
 :root {
   --radius: 1rem;
 
-  /* Pure black starfield */
-  --background: #000000;
-  --foreground: #f3e8ff;
+  /* Cinematic black + gold */
+  --background: #050505;
+  --foreground: #ffffff;
 
-  --card: #160d26;
-  --card-foreground: #f3e8ff;
-  --popover: #160d26;
-  --popover-foreground: #f3e8ff;
+  --card: #0f0f0c;
+  --card-foreground: #ffffff;
+  --popover: #0f0f0c;
+  --popover-foreground: #ffffff;
 
-  --primary: #a855f7;
-  --primary-foreground: #0b0614;
+  --primary: #ffc400;
+  --primary-foreground: #0a0a0a;
 
-  --secondary: #1e1233;
-  --secondary-foreground: #f3e8ff;
+  --secondary: #12120e;
+  --secondary-foreground: #ffffff;
 
   --muted: rgba(255, 255, 255, 0.05);
-  --muted-foreground: rgba(243, 232, 255, 0.55);
+  --muted-foreground: #a0a0a0;
 
-  --accent: #d8b4fe;
-  --accent-foreground: #0b0614;
+  --accent: #d99a00;
+  --accent-foreground: #0a0a0a;
 
   --destructive: #ef4444;
   --destructive-foreground: #ffffff;
@@ -90,23 +91,23 @@
   --tier: #a855f7;
   --tier-soft: color-mix(in oklab, var(--tier) 22%, transparent);
 
-  --surface: rgba(22, 13, 38, 0.72);
-  --surface-2: rgba(30, 18, 51, 0.65);
+  --surface: rgba(15, 15, 12, 0.75);
+  --surface-2: rgba(18, 18, 14, 0.65);
 
-  --chart-1: #a855f7;
-  --chart-2: #d8b4fe;
-  --chart-3: #f3e8ff;
-  --chart-4: #7c3aed;
-  --chart-5: #c084fc;
+  --chart-1: #ffc400;
+  --chart-2: #d99a00;
+  --chart-3: #ffffff;
+  --chart-4: #fde047;
+  --chart-5: #a0a0a0;
 
-  --sidebar: #0b0614;
-  --sidebar-foreground: #f3e8ff;
-  --sidebar-primary: #a855f7;
-  --sidebar-primary-foreground: #0b0614;
-  --sidebar-accent: #1e1233;
-  --sidebar-accent-foreground: #f3e8ff;
-  --sidebar-border: rgba(255, 255, 255, 0.08);
-  --sidebar-ring: #a855f7;
+  --sidebar: #050505;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #ffc400;
+  --sidebar-primary-foreground: #0a0a0a;
+  --sidebar-accent: #12120e;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255, 196, 0, 0.25);
+  --sidebar-ring: #ffc400;
 }
 
 @layer base {
@@ -160,6 +161,12 @@
   body {
     height: 100%;
     overflow: hidden;
+    scrollbar-width: none;
+  }
+
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar {
+    display: none;
   }
 
   body {
@@ -173,6 +180,54 @@
   h3 {
     font-family: var(--font-display);
     letter-spacing: -0.02em;
+  }
+}
+
+@utility tip-panel {
+  background: rgba(15, 15, 12, 0.78);
+  backdrop-filter: blur(28px) saturate(140%);
+  border: 1px solid color-mix(in oklab, var(--tier) 38%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--tier) 22%, transparent),
+    0 0 48px -8px color-mix(in oklab, var(--tier) 52%, transparent),
+    0 24px 56px -18px rgba(0, 0, 0, 0.72);
+  transition:
+    border-color 0.55s ease,
+    box-shadow 0.55s ease;
+}
+
+@utility tier-cta {
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--tier) 40%, transparent),
+    0 12px 36px -8px color-mix(in oklab, var(--tier) 62%, transparent),
+    0 0 28px -6px color-mix(in oklab, var(--tier) 48%, transparent);
+  transition:
+    box-shadow 0.3s ease,
+    filter 0.3s ease,
+    transform 0.3s ease,
+    background-color 0.55s ease;
+
+  &:hover {
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, var(--tier) 55%, transparent),
+      0 14px 44px -6px color-mix(in oklab, var(--tier) 75%, transparent),
+      0 0 40px -4px color-mix(in oklab, var(--tier) 58%, transparent);
+  }
+}
+
+@utility live-pulse {
+  animation: live-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.55);
+  }
+  50% {
+    opacity: 0.75;
+    box-shadow: 0 0 0 6px rgba(34, 197, 94, 0);
   }
 }
 
@@ -197,6 +252,13 @@
     --tier-shift-x 0.65s cubic-bezier(0.4, 0, 0.2, 1),
     --tier-shift-y 0.65s cubic-bezier(0.4, 0, 0.2, 1);
 
+  &[data-tier="standard"] {
+    --tier: #a855f7;
+    --primary: #a855f7;
+    --ring: #a855f7;
+    --accent: #d8b4fe;
+  }
+
   &[data-tier="rare"] {
     --tier: #3b82f6;
     --primary: #3b82f6;
@@ -219,9 +281,9 @@
   }
 
   &[data-tier="legendary"] {
-    --tier: #eab308;
-    --primary: #eab308;
-    --ring: #eab308;
+    --tier: #ffc400;
+    --primary: #ffc400;
+    --ring: #ffc400;
     --accent: #fde047;
     --glow-edge: 0.95;
   }
@@ -479,12 +541,42 @@
   }
 }
 
+@utility hero-portrait {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+  object-position: 28% center;
+  filter: saturate(0.88) contrast(1.08) brightness(0.78);
+}
+
+@utility gold-spark {
+  position: absolute;
+  border-radius: 9999px;
+  background: #ffc400;
+  box-shadow: 0 0 10px 2px rgba(255, 196, 0, 0.55);
+  animation: gold-spark 4.5s ease-in-out infinite;
+}
+
+@keyframes gold-spark {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0) scale(0.8);
+  }
+  50% {
+    opacity: 0.95;
+    transform: translateY(-14px) scale(1);
+  }
+}
+
 @utility starry-sky {
   isolation: isolate;
-  background-color: #000000;
-  background-image: url("/images/starfield.svg");
-  background-size: 512px 512px;
-  background-repeat: repeat;
+  background-color: #050505;
+  background-image: url("/images/starry-sky.png");
+  background-size: cover;
+  background-repeat: no-repeat;
   background-position: center center;
 
   &::before {
@@ -496,7 +588,7 @@
     background-image: url("/images/starfield.svg");
     background-size: 384px 384px;
     background-repeat: repeat;
-    opacity: 0.5;
+    opacity: 0.28;
     animation:
       starfield-drift 120s linear infinite,
       starfield-twinkle 6s ease-in-out infinite;
@@ -509,8 +601,8 @@
     z-index: 0;
     pointer-events: none;
     background:
-      radial-gradient(ellipse 75% 55% at 50% 48%, transparent 30%, rgba(0, 0, 0, 0.72) 100%),
-      radial-gradient(ellipse 40% 30% at 50% 50%, rgba(255, 255, 255, 0.03), transparent 70%);
+      radial-gradient(ellipse 70% 60% at 72% 48%, transparent 18%, rgba(0, 0, 0, 0.42) 100%),
+      radial-gradient(ellipse 40% 30% at 50% 50%, rgba(255, 196, 0, 0.04), transparent 70%);
   }
 }
 

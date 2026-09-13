@@ -186,32 +186,28 @@
 @utility tip-panel {
   background: rgba(15, 15, 12, 0.78);
   backdrop-filter: blur(28px) saturate(140%);
-  border: 1px solid color-mix(in oklab, var(--tier) 38%, transparent);
+  border: 1px solid rgba(255, 196, 0, 0.28);
   box-shadow:
-    0 0 0 1px color-mix(in oklab, var(--tier) 22%, transparent),
-    0 0 48px -8px color-mix(in oklab, var(--tier) 52%, transparent),
+    0 0 0 1px rgba(255, 196, 0, 0.1),
+    0 0 40px -10px rgba(255, 196, 0, 0.35),
     0 24px 56px -18px rgba(0, 0, 0, 0.72);
-  transition:
-    border-color 0.55s ease,
-    box-shadow 0.55s ease;
 }
 
 @utility tier-cta {
   box-shadow:
-    0 0 0 1px color-mix(in oklab, var(--tier) 40%, transparent),
-    0 12px 36px -8px color-mix(in oklab, var(--tier) 62%, transparent),
-    0 0 28px -6px color-mix(in oklab, var(--tier) 48%, transparent);
+    0 0 0 1px rgba(255, 196, 0, 0.35),
+    0 12px 36px -8px rgba(255, 196, 0, 0.5),
+    0 0 24px -6px rgba(255, 196, 0, 0.4);
   transition:
     box-shadow 0.3s ease,
     filter 0.3s ease,
-    transform 0.3s ease,
-    background-color 0.55s ease;
+    transform 0.3s ease;
 
   &:hover {
     box-shadow:
-      0 0 0 1px color-mix(in oklab, var(--tier) 55%, transparent),
-      0 14px 44px -6px color-mix(in oklab, var(--tier) 75%, transparent),
-      0 0 40px -4px color-mix(in oklab, var(--tier) 58%, transparent);
+      0 0 0 1px rgba(255, 196, 0, 0.5),
+      0 14px 44px -6px rgba(255, 196, 0, 0.65),
+      0 0 36px -4px rgba(255, 196, 0, 0.5);
   }
 }
 
@@ -232,10 +228,10 @@
 }
 
 @utility tier-theme {
-  --tier: #a855f7;
-  --primary: #a855f7;
-  --ring: #a855f7;
-  --accent: #d8b4fe;
+  --tier: #ffc400;
+  --primary: #ffc400;
+  --ring: #ffc400;
+  --accent: #fde047;
   --tier-soft: color-mix(in oklab, var(--tier) 22%, transparent);
   --tier-panel-bg: color-mix(in oklab, var(--tier) 14%, var(--secondary));
   --tier-surface-bg: color-mix(in oklab, var(--tier) 10%, var(--surface));
@@ -244,49 +240,6 @@
   --tier-shift-x: 50%;
   --tier-shift-y: 50%;
   --glow-edge: 0.85;
-  transition:
-    --tier 0.55s cubic-bezier(0.4, 0, 0.2, 1),
-    --primary 0.55s cubic-bezier(0.4, 0, 0.2, 1),
-    --accent 0.55s cubic-bezier(0.4, 0, 0.2, 1),
-    --ring 0.55s cubic-bezier(0.4, 0, 0.2, 1),
-    --tier-shift-x 0.65s cubic-bezier(0.4, 0, 0.2, 1),
-    --tier-shift-y 0.65s cubic-bezier(0.4, 0, 0.2, 1);
-
-  &[data-tier="standard"] {
-    --tier: #a855f7;
-    --primary: #a855f7;
-    --ring: #a855f7;
-    --accent: #d8b4fe;
-  }
-
-  &[data-tier="rare"] {
-    --tier: #3b82f6;
-    --primary: #3b82f6;
-    --ring: #3b82f6;
-    --accent: #93c5fd;
-  }
-
-  &[data-tier="epic"] {
-    --tier: #22c55e;
-    --primary: #22c55e;
-    --ring: #22c55e;
-    --accent: #86efac;
-  }
-
-  &[data-tier="mythic"] {
-    --tier: #f97316;
-    --primary: #f97316;
-    --ring: #f97316;
-    --accent: #fdba74;
-  }
-
-  &[data-tier="legendary"] {
-    --tier: #ffc400;
-    --primary: #ffc400;
-    --ring: #ffc400;
-    --accent: #fde047;
-    --glow-edge: 0.95;
-  }
 
   & .glass {
     background: color-mix(

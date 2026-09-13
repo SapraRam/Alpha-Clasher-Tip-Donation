@@ -15,5 +15,5 @@ export const metadata: Metadata = {
 
 export default async function HomePage() {
   const youtube = await getYouTubeChannel();
-  return <TipPage youtube={youtube} />;
+  return <TipPage youtube={youtube} streamerId="alpha-clasher" />;
 }

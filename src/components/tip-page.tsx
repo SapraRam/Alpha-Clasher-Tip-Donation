@@ -27,15 +27,17 @@ import {
   TrendingUp,
   Upload,
   User,
-  Volume2,
   X,
   Youtube,
 } from "lucide-react";
 
+import { createDonation, getDonationStatus, mockConfirmDonation } from "@/lib/api";
 import { truncateTitle } from "@/lib/youtube/api";
 import type { YouTubeChannelResult } from "@/lib/youtube/types";
 
 const portraitImage = "/images/alpha.jpg";
+const DEFAULT_MEME_URL = "https://i.imgflip.com/43a45p.png";
+const STREAMER_ID_DEFAULT = "alpha-clasher";
 
 interface TierInfo {
   name: string;
@@ -103,7 +105,11 @@ const HYPE_TAGS = ["🔥 GG WP!", "💎 Clutch God", "⚡ Beast Mode", "🍕 Sna
 
 const SOCIALS = [
   { label: "YouTube", href: "https://www.youtube.com/@AlphaClasher", kind: "youtube" as const },
-  { label: "Instagram", href: "https://www.instagram.com/alpha_clasher/", kind: "instagram" as const },
+  {
+    label: "Instagram",
+    href: "https://www.instagram.com/alpha_clasher/",
+    kind: "instagram" as const,
+  },
   { label: "X", href: "https://x.com/alpha__clasher", kind: "x" as const },
   { label: "Discord", href: "https://discord.com/invite/alphaclasher", kind: "discord" as const },
 ];
@@ -166,13 +172,6 @@ const MEME_PRESETS = [
   },
 ];
 
-const VOICE_PRESETS = [
-  { id: "clutch", label: "Alpha bhai clutch kardo OP! 🔥", duration: "3s" },
-  { id: "bhai", label: "Arey bhai bhai bhai! Kya mara! 🎯", duration: "4s" },
-  { id: "beast", label: "Beast mode on hai aaj full power! ⚡", duration: "3s" },
-  { id: "customs", label: "Next custom room ka password do! 🚀", duration: "4s" },
-];
-
 function tierFor(amount: number): TierInfo {
   if (amount >= 10000) return TIERS.legendary;
   if (amount >= 1000) return TIERS.mythic;
@@ -201,7 +200,13 @@ function DiscordIcon({ className }: { className?: string }) {
   );
 }
 
-export default function TipPage({ youtube }: { youtube: YouTubeChannelResult }) {
+export default function TipPage({
+  youtube,
+  streamerId = STREAMER_ID_DEFAULT,
+}: {
+  youtube: YouTubeChannelResult;
+  streamerId?: string;
+}) {
   const channel = youtube.channel;
 
   const [amount, setAmount] = useState(10000);
@@ -210,6 +215,9 @@ export default function TipPage({ youtube }: { youtube: YouTubeChannelResult }) 
   const [email, setEmail] = useState("");
   const [tierPulse, setTierPulse] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [pendingDonationId, setPendingDonationId] = useState<string | null>(null);
 
   // 100+ Meme / GIF state (Meme API Integration Guide)
   interface MemeFeedItem {
@@ -251,6 +259,7 @@ export default function TipPage({ youtube }: { youtube: YouTubeChannelResult }) 
   const [selectedVoice, setSelectedVoice] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordedAudioUrl, setRecordedAudioUrl] = useState<string | null>(null);
+  const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -325,7 +334,42 @@ export default function TipPage({ youtube }: { youtube: YouTubeChannelResult }) 
     };
   }, []);
 
-  const canSend = amount >= 20 && email.includes("@");
+  const pollDonation = async (donationId: string) => {
+    const maxAttempts = 60;
+    for (let i = 0; i < maxAttempts; i++) {
+      const status = await getDonationStatus(donationId);
+      if (status.status === "confirmed") {
+        setIsSuccess(true);
+        setPendingDonationId(null);
+        return;
+      }
+      if (status.status === "expired" || status.status === "failed") {
+        setError(`Payment ${status.status}. Please try again.`);
+        setPendingDonationId(null);
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+    setError("Payment still pending. Complete UPI payment, then refresh.");
+  };
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const donationId = params.get("donation");
+    const isMock = params.get("mock") === "1";
+    if (!donationId) return;
+
+    setPendingDonationId(donationId);
+    if (isMock) {
+      mockConfirmDonation(donationId)
+        .then(() => pollDonation(donationId))
+        .catch(() => setError("Mock payment failed"));
+    } else {
+      pollDonation(donationId);
+    }
+  }, []);
+
+  const canSend = amount >= 20 && email.includes("@") && !isSubmitting;
 
   const step = (dir: 1 | -1) => {
     const inc = amount >= 1000 ? 500 : amount >= 100 ? 50 : 10;
@@ -352,6 +396,7 @@ export default function TipPage({ youtube }: { youtube: YouTubeChannelResult }) 
       recorder.onstop = () => {
         const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
         const url = URL.createObjectURL(blob);
+        setRecordedBlob(blob);
         setRecordedAudioUrl(url);
         setSelectedVoice("Personal Voice Note (Recorded)");
         stream.getTracks().forEach((track) => track.stop());
@@ -386,6 +431,55 @@ export default function TipPage({ youtube }: { youtube: YouTubeChannelResult }) 
     setIsRecording(false);
   };
 
+  const clearVoice = () => {
+    setRecordedBlob(null);
+    if (recordedAudioUrl) URL.revokeObjectURL(recordedAudioUrl);
+    setRecordedAudioUrl(null);
+    setSelectedVoice(null);
+  };
+
+  const handleSendTip = async () => {
+    if (!canSend) return;
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      const memeUrl = selectedMeme?.image_url ?? DEFAULT_MEME_URL;
+      const formData = new FormData();
+      formData.append("streamer_id", streamerId);
+      formData.append("amount", String(amount));
+      formData.append("meme_url", memeUrl);
+      if (name.trim()) formData.append("name", name.trim());
+      if (message.trim()) formData.append("message", message.trim());
+      if (recordedBlob && isVoiceUnlocked) {
+        formData.append("voice", recordedBlob, "voice.webm");
+      }
+
+      const result = await createDonation(formData);
+      setPendingDonationId(result.donation_id);
+
+      if (result.dev_mock_pay && result.short_url?.includes("mock=1")) {
+        await mockConfirmDonation(result.donation_id);
+        await pollDonation(result.donation_id);
+        return;
+      }
+
+      if (result.short_url) {
+        const isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
+        if (isMobile) {
+          window.location.href = result.short_url;
+        } else {
+          window.open(result.short_url, "_blank", "noopener,noreferrer");
+          await pollDonation(result.donation_id);
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to send tip");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const channelName = channel?.channelTitle ?? "Alpha Clasher";
   const isLive = Boolean(channel?.liveStream);
 
@@ -417,17 +511,10 @@ export default function TipPage({ youtube }: { youtube: YouTubeChannelResult }) 
   ];
 
   return (
-    <main
-      data-tier={tierKey}
-      className="tier-theme relative h-dvh w-full overflow-hidden bg-black"
-    >
+    <main className="tier-theme relative h-dvh w-full overflow-hidden bg-black">
       {/* Full-page cinematic background — one image across the whole layout */}
       <div className="pointer-events-none absolute inset-0 z-0">
-        <img
-          src={portraitImage}
-          alt=""
-          className="hero-portrait"
-        />
+        <img src={portraitImage} alt="" className="hero-portrait" />
 
         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/35 to-black/15" />
         <div className="absolute inset-0 bg-gradient-to-r from-black/30 via-transparent to-black/75" />
@@ -444,48 +531,42 @@ export default function TipPage({ youtube }: { youtube: YouTubeChannelResult }) 
         <span className="gold-spark bottom-[36%] right-[28%] h-1.5 w-1.5 [animation-delay:0.9s]" />
       </div>
 
-      {/* Ambient tier glow behind the floating panel */}
-      <div
-        className="pointer-events-none absolute z-[1] h-[28rem] w-[28rem] rounded-full blur-[140px] opacity-30 transition-all duration-700 lg:right-[8%] lg:top-1/2 lg:-translate-y-1/2"
-        style={{ backgroundColor: "var(--tier)" }}
-      />
-
       <div className="relative z-10 flex h-full min-h-0 w-full flex-col lg:flex-row">
         {/* LEFT SIDE: creator copy over the shared background */}
-        <section className="relative flex min-h-0 w-full flex-[1] flex-col justify-end px-6 pb-10 pt-10 sm:px-10 sm:pb-12 lg:w-[54%] lg:flex-none lg:pl-16 lg:pr-10 lg:pb-16">
-          <div className="relative z-10 max-w-xl space-y-3 lg:space-y-4">
+        <section className="relative flex min-h-0 w-full flex-[1] flex-col justify-end px-6 pb-10 pt-10 sm:px-10 sm:pb-12 lg:w-[50%] lg:flex-none lg:pl-16 lg:pr-8 lg:pb-16">
+          <div className="relative z-10 max-w-2xl space-y-4 lg:space-y-5">
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="font-display text-3xl font-extrabold tracking-tight text-white sm:text-4xl lg:text-[3.25rem]">
+                <h1 className="font-display text-4xl font-extrabold tracking-tight text-white sm:text-5xl lg:text-6xl">
                   {channelName}
                 </h1>
               </div>
-              <p className="mt-1.5 text-xs text-[#a0a0a0] sm:text-sm">
+              <p className="mt-2 text-sm text-[#a0a0a0] sm:text-base">
                 YouTube Gaming Partner • Competitive Customs & Scrims
               </p>
             </div>
 
-            <p className="max-w-md text-xs leading-relaxed text-white/85 sm:text-sm">
+            <p className="max-w-lg text-sm leading-relaxed text-white/85 sm:text-base">
               Send a live on-screen tip with your custom message, Indian memes & GIFs (₹100+), or
               live voice notes (₹1000+) on Alpha Clasher&apos;s stream!
             </p>
 
-            <div className="grid grid-cols-3 gap-2 pt-1 sm:gap-2.5">
+            <div className="grid grid-cols-3 gap-2.5 pt-1 sm:gap-3">
               {statCards.map((s) => {
                 const card = (
-                  <div className="rounded-lg border border-white/10 bg-black/45 px-2.5 py-2 backdrop-blur-md transition-all hover:border-[#ffc400]/35 hover:bg-black/55">
+                  <div className="rounded-xl border border-white/10 bg-black/45 px-3.5 py-3.5 backdrop-blur-md transition-all hover:border-[#ffc400]/35 hover:bg-black/55 sm:px-4 sm:py-4">
                     {s.live ? (
-                      <span className="relative mt-0.5 flex h-2 w-2">
+                      <span className="relative mt-0.5 flex h-2.5 w-2.5">
                         <span className="live-pulse absolute inline-flex h-full w-full rounded-full bg-emerald-400" />
-                        <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+                        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400" />
                       </span>
                     ) : (
-                      <s.icon className={`h-3.5 w-3.5 ${s.iconClass}`} />
+                      <s.icon className={`h-5 w-5 ${s.iconClass}`} />
                     )}
-                    <div className="mt-1.5 truncate font-display text-[11px] font-bold text-white sm:text-sm">
+                    <div className="mt-2 truncate font-display text-sm font-bold text-white sm:text-base">
                       {s.v}
                     </div>
-                    <div className="text-[9px] font-semibold uppercase tracking-wider text-white/50">
+                    <div className="mt-0.5 text-[10px] font-semibold uppercase tracking-wider text-white/50 sm:text-xs">
                       {s.k}
                     </div>
                   </div>
@@ -508,10 +589,10 @@ export default function TipPage({ youtube }: { youtube: YouTubeChannelResult }) 
             </div>
 
             <div className="flex flex-wrap items-end justify-between gap-3 pt-2">
-              <p className="font-display text-sm italic tracking-wide text-white/70">
+              <p className="font-display text-base italic tracking-wide text-white/70 sm:text-lg">
                 Same Games. Different Energy.
               </p>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2.5">
                 {SOCIALS.map((social) => (
                   <a
                     key={social.label}
@@ -519,12 +600,12 @@ export default function TipPage({ youtube }: { youtube: YouTubeChannelResult }) 
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label={social.label}
-                    className="grid h-8 w-8 place-items-center rounded-full border border-white/10 bg-black/40 text-white/70 transition-all hover:-translate-y-0.5 hover:border-[#ffc400]/40 hover:text-[#ffc400]"
+                    className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-black/40 text-white/70 transition-all hover:-translate-y-0.5 hover:border-[#ffc400]/40 hover:text-[#ffc400]"
                   >
-                    {social.kind === "youtube" && <Youtube className="h-3.5 w-3.5" />}
-                    {social.kind === "instagram" && <Instagram className="h-3.5 w-3.5" />}
-                    {social.kind === "x" && <XIcon className="h-3.5 w-3.5" />}
-                    {social.kind === "discord" && <DiscordIcon className="h-3.5 w-3.5" />}
+                    {social.kind === "youtube" && <Youtube className="h-4 w-4" />}
+                    {social.kind === "instagram" && <Instagram className="h-4 w-4" />}
+                    {social.kind === "x" && <XIcon className="h-4 w-4" />}
+                    {social.kind === "discord" && <DiscordIcon className="h-4 w-4" />}
                   </a>
                 ))}
               </div>
@@ -533,47 +614,47 @@ export default function TipPage({ youtube }: { youtube: YouTubeChannelResult }) 
         </section>
 
         {/* RIGHT SIDE: the only major card — floating glass panel */}
-        <section className="relative flex min-h-0 w-full flex-[1.15] items-center justify-center overflow-hidden px-4 py-4 sm:px-6 lg:h-full lg:w-[46%] lg:flex-none lg:px-6 lg:py-6 lg:pr-10">
+        <section className="relative flex min-h-0 w-full flex-[1.15] items-center justify-center overflow-hidden px-4 py-4 sm:px-6 lg:h-full lg:w-[50%] lg:flex-none lg:px-5 lg:py-5 lg:pr-8">
           <div
-            className={`tip-panel relative flex max-h-full w-full max-w-[34rem] flex-col justify-between rounded-[2rem] p-5 sm:p-7 ${
+            className={`tip-panel relative flex h-[92%] max-h-full w-full max-w-[42rem] flex-col justify-between rounded-[2rem] p-6 sm:p-8 ${
               tierPulse ? "tier-pulse" : ""
             }`}
           >
-            <div className="space-y-4">
+            {pendingDonationId && !isSuccess && (
+              <div className="mb-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                Waiting for UPI payment… complete payment in the opened tab.
+              </div>
+            )}
+            {error && (
+              <div className="mb-3 rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+                {error}
+              </div>
+            )}
+            <div className="flex min-h-0 flex-1 flex-col justify-between space-y-5">
               {/* Header Bar */}
               <div className="flex items-center justify-between">
                 <div>
                   <div className="mt-0.5 flex items-center gap-1.5 text-xs font-semibold text-white/90">
-                    <span
-                      className="h-2 w-2 rounded-full"
-                      style={{ backgroundColor: tier.color }}
-                    />
+                    <span className="h-2 w-2 rounded-full bg-[#ffc400]" />
                     <span>{tier.name} Tier</span>
                     <span className="text-white/40">•</span>
-                    <span style={{ color: tier.accent }}>{tier.perk}</span>
+                    <span className="text-[#fde047]">{tier.perk}</span>
                   </div>
                 </div>
 
-                <span
-                  className="rounded-full border px-2.5 py-0.5 font-display text-[10px] font-black uppercase tracking-wider"
-                  style={{
-                    borderColor: `${tier.color}60`,
-                    backgroundColor: `${tier.color}15`,
-                    color: tier.accent,
-                  }}
-                >
+                <span className="rounded-full border border-[#ffc400]/40 bg-[#ffc400]/15 px-2.5 py-0.5 font-display text-[10px] font-black uppercase tracking-wider text-[#fde047]">
                   {tier.name}
                 </span>
               </div>
 
               {/* Amount Stepper Box */}
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-center">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-center sm:p-6">
                 <div className="flex items-center justify-between">
                   <button
                     type="button"
                     onClick={() => step(-1)}
                     aria-label="Decrease tip"
-                    className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/15 bg-white/5 text-white/70 transition-all hover:-translate-y-0.5 hover:border-primary hover:text-white active:scale-95"
+                    className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-white/15 bg-white/5 text-white/70 transition-all hover:-translate-y-0.5 hover:border-primary hover:text-white active:scale-95"
                   >
                     <Minus className="h-4 w-4" />
                   </button>
@@ -601,14 +682,14 @@ export default function TipPage({ youtube }: { youtube: YouTubeChannelResult }) 
                     type="button"
                     onClick={() => step(1)}
                     aria-label="Increase tip"
-                    className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/15 bg-white/5 text-white/70 transition-all hover:-translate-y-0.5 hover:border-primary hover:text-white active:scale-95"
+                    className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-white/15 bg-white/5 text-white/70 transition-all hover:-translate-y-0.5 hover:border-primary hover:text-white active:scale-95"
                   >
                     <Plus className="h-4 w-4" />
                   </button>
                 </div>
 
                 {/* Clean Presets Row */}
-                <div className="mt-3.5 grid grid-cols-6 gap-1.5">
+                <div className="mt-3.5 grid grid-cols-6 gap-2">
                   {PRESETS.map((p) => {
                     const active = p === amount;
                     return (
@@ -616,9 +697,9 @@ export default function TipPage({ youtube }: { youtube: YouTubeChannelResult }) 
                         key={p}
                         type="button"
                         onClick={() => setAmount(p)}
-                        className={`rounded-lg py-2 text-xs font-bold transition-all active:scale-95 ${
+                        className={`rounded-lg py-2.5 text-sm font-bold transition-all active:scale-95 ${
                           active
-                            ? "bg-primary text-black font-extrabold shadow-[0_0_18px_color-mix(in_oklab,var(--tier)_55%,transparent)]"
+                            ? "bg-[#ffc400] text-black font-extrabold shadow-[0_0_18px_rgba(255,196,0,0.45)]"
                             : "border border-white/10 bg-white/5 text-white/70 hover:-translate-y-0.5 hover:border-white/20 hover:text-white"
                         }`}
                       >
@@ -837,10 +918,14 @@ export default function TipPage({ youtube }: { youtube: YouTubeChannelResult }) 
               <button
                 type="button"
                 disabled={!canSend}
-                onClick={() => setIsSuccess(true)}
-                className="tier-cta group flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 font-display text-sm font-black uppercase tracking-wider text-black transition-all hover:-translate-y-0.5 hover:brightness-110 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0"
+                onClick={handleSendTip}
+                className="tier-cta group flex w-full items-center justify-center gap-2 rounded-xl bg-[#ffc400] py-4 font-display text-sm font-black uppercase tracking-wider text-black transition-all hover:-translate-y-0.5 hover:brightness-110 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0"
               >
-                <span>Send ₹{amount.toLocaleString("en-IN")} Tip to Stream</span>
+                <span>
+                  {isSubmitting
+                    ? "Opening UPI..."
+                    : `Send ₹${amount.toLocaleString("en-IN")} Tip to Stream`}
+                </span>
                 <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
               </button>
 
@@ -850,7 +935,7 @@ export default function TipPage({ youtube }: { youtube: YouTubeChannelResult }) 
                   Instant Live Alert
                 </span>
                 <span>•</span>
-                <span>UPI & Cards</span>
+                <span>UPI only</span>
                 <span>•</span>
                 <span>Secure</span>
               </div>
@@ -1313,10 +1398,7 @@ export default function TipPage({ youtube }: { youtube: YouTubeChannelResult }) 
                   <audio src={recordedAudioUrl} controls className="h-8 max-w-[220px]" />
                   <button
                     type="button"
-                    onClick={() => {
-                      setRecordedAudioUrl(null);
-                      setSelectedVoice(null);
-                    }}
+                    onClick={clearVoice}
                     className="rounded-lg border border-red-500/30 p-1.5 text-red-400 hover:bg-red-500/10"
                     title="Delete voice note"
                   >
@@ -1324,39 +1406,6 @@ export default function TipPage({ youtube }: { youtube: YouTubeChannelResult }) 
                   </button>
                 </div>
               )}
-            </div>
-
-            {/* Quick Iconic Stream Audio Presets */}
-            <div className="mt-3.5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-white/50">
-                Or Pick Quick Voice Shoutout
-              </span>
-              <div className="mt-1.5 space-y-1.5">
-                {VOICE_PRESETS.map((v) => {
-                  const isSelected = selectedVoice === v.label;
-                  return (
-                    <button
-                      key={v.id}
-                      type="button"
-                      onClick={() => {
-                        setSelectedVoice(v.label);
-                        setIsVoiceModalOpen(false);
-                      }}
-                      className={`flex w-full items-center justify-between rounded-xl border p-2.5 text-left text-xs transition-all ${
-                        isSelected
-                          ? "border-orange-500 bg-orange-500/20 text-orange-200"
-                          : "border-white/10 bg-white/5 text-white/80 hover:border-white/20 hover:bg-white/10"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <Volume2 className="h-3.5 w-3.5 text-orange-400 shrink-0" />
-                        <span className="font-semibold">{v.label}</span>
-                      </div>
-                      <span className="text-[10px] text-white/40">{v.duration}</span>
-                    </button>
-                  );
-                })}
-              </div>
             </div>
 
             {selectedVoice && (
@@ -1387,7 +1436,7 @@ export default function TipPage({ youtube }: { youtube: YouTubeChannelResult }) 
               Tip Sent Successfully!
             </h3>
             <p className="mt-1 text-xs text-white/70">
-              ₹{amount.toLocaleString("en-IN")} queued for Alpha Clasher&apos;s stream alert.
+              ₹{amount.toLocaleString("en-IN")} confirmed — live on {channelName}&apos;s stream!
             </p>
 
             <div className="mt-3 space-y-1 rounded-xl bg-white/5 p-3 text-left text-xs">
@@ -1411,7 +1460,12 @@ export default function TipPage({ youtube }: { youtube: YouTubeChannelResult }) 
 
             <button
               type="button"
-              onClick={() => setIsSuccess(false)}
+              onClick={() => {
+                setIsSuccess(false);
+                setError(null);
+                const path = streamerId === STREAMER_ID_DEFAULT ? "/" : `/donate/${streamerId}`;
+                window.history.replaceState({}, "", path);
+              }}
               className="mt-4 w-full rounded-xl bg-white/10 py-2.5 text-xs font-bold uppercase tracking-wider text-white hover:bg-white/20 transition-colors"
             >
               Done

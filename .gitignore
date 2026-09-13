@@ -17,6 +17,8 @@ dist
 .lovable
 *.local
 .env
+backend/donations.db
+backend/.env
 
 # Wrangler / Cloudflare
 .wrangler/

@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OBS Donation Overlay</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: transparent;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+    #status {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      z-index: 10000;
+      padding: 10px 14px;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 16px;
+      font-weight: bold;
+      background: rgba(120, 0, 0, 0.92);
+      max-width: 460px;
+      line-height: 1.35;
+    }
+    #status.ok { background: rgba(0, 130, 0, 0.92); }
+    #status.warn { background: rgba(180, 100, 0, 0.92); }
+    #status small {
+      display: block;
+      margin-top: 4px;
+      font-size: 11px;
+      font-weight: normal;
+      opacity: 0.9;
+    }
+    #alert {
+      display: none;
+      position: fixed;
+      bottom: 48px;
+      left: 48px;
+      z-index: 9999;
+      width: 520px;
+      max-width: calc(100vw - 96px);
+      padding: 20px;
+      border-radius: 16px;
+      border: 3px solid #ffc400;
+      background: rgba(0, 0, 0, 0.94);
+      color: #fff;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    }
+    #alert.show { display: block; }
+    #alert-inner { display: flex; gap: 16px; align-items: flex-start; }
+    #alert img {
+      width: 112px;
+      height: 112px;
+      border-radius: 12px;
+      object-fit: cover;
+      flex-shrink: 0;
+      background: #222;
+    }
+    #alert-text { flex: 1; min-width: 0; }
+    #alert-name { font-size: 22px; font-weight: bold; margin-bottom: 4px; }
+    #alert-amount {
+      font-size: 28px;
+      font-weight: bold;
+      color: #ffc400;
+      float: right;
+      margin-left: 8px;
+    }
+    #alert-message {
+      margin-top: 10px;
+      font-size: 15px;
+      color: rgba(255, 255, 255, 0.88);
+      word-wrap: break-word;
+    }
+    #voice-badge {
+      display: none;
+      margin-top: 8px;
+      font-size: 13px;
+      color: #ffc400;
+      font-weight: bold;
+    }
+    #voice-badge.show { display: block; }
+    /* Hidden but in DOM — OBS routes audio better from <audio> than new Audio() */
+    #voice-player {
+      position: fixed;
+      left: -9999px;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="status">Starting overlay…</div>
+  <div id="alert" aria-live="polite">
+    <div id="alert-inner">
+      <img id="alert-meme" src="" alt="" />
+      <div id="alert-text">
+        <div>
+          <span id="alert-amount"></span>
+          <span id="alert-name"></span>
+        </div>
+        <p id="alert-message"></p>
+        <div id="voice-badge">Playing voice message…</div>
+      </div>
+    </div>
+  </div>
+  <audio id="voice-player" preload="auto"></audio>
+
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <script>
+    (function () {
+      var params = new URLSearchParams(window.location.search);
+      var streamerId = params.get("streamer") || params.get("streamerId") || "alpha-clasher";
+      var token = params.get("token") || "";
+      var apiBase = (params.get("api") || window.location.origin).replace(/\/$/, "");
+      var testMode = params.get("test") === "1";
+      var hideStatus = params.get("hideStatus") === "1";
+
+      var POLL_FAST_MS = 2000;
+      var POLL_SLOW_MS = 8000;
+      var ALERT_MS = 7000;
+      var VOICE_MAX_MS = 30000;
+
+      var statusEl = document.getElementById("status");
+      var alertEl = document.getElementById("alert");
+      var voiceBadge = document.getElementById("voice-badge");
+      var voicePlayer = document.getElementById("voice-player");
+      var seen = {};
+      var queue = [];
+      var playing = false;
+      var primed = false;
+      var pollCount = 0;
+      var lastSince = null;
+      var socketConnected = false;
+      var audioUnlocked = false;
+      var pollTimer = null;
+      var currentPollMs = POLL_SLOW_MS;
+
+      if (hideStatus) statusEl.style.display = "none";
+
+      function resolveUrl(url) {
+        if (!url) return "";
+        if (url.indexOf("http://") === 0 || url.indexOf("https://") === 0) return url;
+        return apiBase + (url.charAt(0) === "/" ? url : "/" + url);
+      }
+
+      function setStatus(kind, title, detail) {
+        if (hideStatus) return;
+        statusEl.className = kind || "";
+        statusEl.innerHTML = title + (detail ? "<small>" + detail + "</small>" : "");
+      }
+
+      function showAlert(donation) {
+        document.getElementById("alert-meme").src = donation.meme_url || "";
+        document.getElementById("alert-name").textContent = donation.name || "Anonymous";
+        document.getElementById("alert-amount").textContent =
+          "\u20B9" + Number(donation.amount).toLocaleString("en-IN");
+        var msg = donation.message || "";
+        document.getElementById("alert-message").textContent = msg ? "\u201C" + msg + "\u201D" : "";
+        voiceBadge.classList.remove("show");
+        alertEl.classList.add("show");
+      }
+
+      function hideAlert() {
+        alertEl.classList.remove("show");
+        voiceBadge.classList.remove("show");
+        voicePlayer.pause();
+        voicePlayer.removeAttribute("src");
+        voicePlayer.load();
+      }
+
+      function unlockAudio() {
+        if (audioUnlocked) return Promise.resolve(true);
+        voicePlayer.src =
+          "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+        return voicePlayer.play().then(function () {
+          audioUnlocked = true;
+          voicePlayer.pause();
+          voicePlayer.removeAttribute("src");
+          voicePlayer.load();
+          return true;
+        }).catch(function () {
+          return false;
+        });
+      }
+
+      function playVoice(url) {
+        return new Promise(function (resolve) {
+          if (!url) {
+            resolve(false);
+            return;
+          }
+          var fullUrl = resolveUrl(url);
+          voiceBadge.classList.add("show");
+          voicePlayer.src = fullUrl;
+          voicePlayer.load();
+
+          var done = function (ok) {
+            voiceBadge.classList.remove("show");
+            resolve(ok);
+          };
+
+          voicePlayer.onended = function () { done(true); };
+          voicePlayer.onerror = function () { done(false); };
+
+          voicePlayer.play().then(function () {
+            audioUnlocked = true;
+          }).catch(function () {
+            setStatus("warn", "AUDIO BLOCKED", "Right-click source → Interact → click once");
+            done(false);
+          });
+
+          setTimeout(function () { done(false); }, VOICE_MAX_MS);
+        });
+      }
+
+      function playNext() {
+        if (playing || queue.length === 0) return;
+        playing = true;
+        currentPollMs = POLL_FAST_MS;
+        schedulePoll();
+
+        var donation = queue.shift();
+        showAlert(donation);
+
+        var finish = function () {
+          setTimeout(function () {
+            hideAlert();
+            playing = false;
+            if (queue.length === 0) {
+              currentPollMs = POLL_SLOW_MS;
+              schedulePoll();
+            }
+            playNext();
+          }, 300);
+        };
+
+        if (donation.voice_url) {
+          playVoice(donation.voice_url).then(function (played) {
+            if (!played) setTimeout(finish, ALERT_MS);
+            else setTimeout(finish, 400);
+          });
+        } else {
+          setTimeout(finish, ALERT_MS);
+        }
+      }
+
+      function enqueue(donation) {
+        var id = donation.id || donation.name + "-" + donation.amount;
+        if (seen[id]) return;
+        seen[id] = true;
+        queue.push(donation);
+        playNext();
+      }
+
+      function handlePollResponse(data) {
+        if (data.server_time) lastSince = data.server_time;
+        var donations = data.donations || [];
+
+        if (!primed) {
+          for (var i = 0; i < donations.length; i++) {
+            var d = donations[i];
+            seen[d.id || d.name + "-" + d.amount] = true;
+          }
+          primed = true;
+          setStatus("ok", socketConnected ? "LIVE (socket)" : "LIVE (poll)",
+            streamerId + " | waiting for tips");
+          return;
+        }
+
+        for (var j = 0; j < donations.length; j++) {
+          enqueue(donations[j]);
+        }
+
+        if (!hideStatus) {
+          setStatus(
+            socketConnected ? "ok" : "ok",
+            socketConnected ? "LIVE (socket)" : "LIVE (poll)",
+            "polls: " + pollCount + " | queue: " + queue.length +
+            (audioUnlocked ? "" : " | click Interact once for voice")
+          );
+        }
+      }
+
+      function poll() {
+        if (!token) {
+          setStatus("", "NO TOKEN", "Add ?token=YOUR_OVERLAY_TOKEN to the URL");
+          return;
+        }
+        pollCount += 1;
+        var url = apiBase + "/overlay/poll?streamer=" + encodeURIComponent(streamerId) +
+          "&token=" + encodeURIComponent(token);
+        if (lastSince) url += "&since=" + encodeURIComponent(lastSince);
+
+        fetch(url)
+          .then(function (res) {
+            if (!res.ok) throw new Error("HTTP " + res.status);
+            return res.json();
+          })
+          .then(handlePollResponse)
+          .catch(function (err) {
+            if (!socketConnected) {
+              setStatus("", "OFFLINE", "Cannot reach API — " + err.message);
+            }
+          });
+      }
+
+      function schedulePoll() {
+        if (pollTimer) clearInterval(pollTimer);
+        pollTimer = setInterval(poll, currentPollMs);
+      }
+
+      function connectSocket() {
+        if (!token || typeof io === "undefined") return;
+
+        var socket = io(apiBase, {
+          path: "/socket.io",
+          transports: ["polling", "websocket"],
+          reconnection: true,
+          auth: { streamerId: streamerId, token: token },
+        });
+
+        socket.on("connect", function () {
+          socketConnected = true;
+          currentPollMs = POLL_SLOW_MS;
+          schedulePoll();
+          setStatus("ok", "LIVE (socket)", streamerId + " | instant alerts");
+        });
+
+        socket.on("disconnect", function () {
+          socketConnected = false;
+          currentPollMs = POLL_FAST_MS;
+          schedulePoll();
+        });
+
+        socket.on("new_donation", function (payload) {
+          primed = true;
+          enqueue(payload);
+        });
+      }
+
+      unlockAudio();
+      connectSocket();
+      poll();
+      schedulePoll();
+
+      if (testMode) {
+        setTimeout(function () {
+          enqueue({
+            id: "test-" + Date.now(),
+            name: "Test Donor",
+            amount: 1000,
+            meme_url: "https://i.imgflip.com/43a45p.png",
+            message: "OBS overlay + voice test",
+            voice_url: null,
+          });
+        }, 2500);
+      }
+    })();
+  </script>
+</body>
+</html>

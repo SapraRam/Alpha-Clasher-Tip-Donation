@@ -135,6 +135,41 @@
   border: 1px solid var(--color-border);
 }
 
+@utility tier-standard {
+  --tier: #a855f7;
+  --tier-soft: color-mix(in oklab, #a855f7 22%, transparent);
+  --primary: #a855f7;
+  --ring: #a855f7;
+}
+
+@utility tier-rare {
+  --tier: #22d3ee;
+  --tier-soft: color-mix(in oklab, #22d3ee 22%, transparent);
+  --primary: #22d3ee;
+  --ring: #22d3ee;
+}
+
+@utility tier-epic {
+  --tier: #fbbf24;
+  --tier-soft: color-mix(in oklab, #fbbf24 22%, transparent);
+  --primary: #fbbf24;
+  --ring: #fbbf24;
+}
+
+@utility tier-mythic {
+  --tier: #fb7185;
+  --tier-soft: color-mix(in oklab, #fb7185 22%, transparent);
+  --primary: #fb7185;
+  --ring: #fb7185;
+}
+
+@utility tier-legendary {
+  --tier: #a3e635;
+  --tier-soft: color-mix(in oklab, #a3e635 22%, transparent);
+  --primary: #a3e635;
+  --ring: #a3e635;
+}
+
 @utility console-glow {
   box-shadow:
     0 0 0 1px color-mix(in oklab, var(--tier) 30%, transparent),

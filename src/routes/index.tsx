@@ -51,11 +51,11 @@ const ALERTS = [
 ];
 
 function tierFor(amount: number) {
-  if (amount >= 10000) return { name: "Legendary", max: 300 };
-  if (amount >= 2000) return { name: "Mythic", max: 250 };
-  if (amount >= 500) return { name: "Epic", max: 200 };
-  if (amount >= 100) return { name: "Rare", max: 120 };
-  return { name: "Standard", max: 60 };
+  if (amount >= 10000) return { cls: "tier-legendary", name: "Legendary", max: 300 };
+  if (amount >= 2000) return { cls: "tier-mythic", name: "Mythic", max: 250 };
+  if (amount >= 500) return { cls: "tier-epic", name: "Epic", max: 200 };
+  if (amount >= 100) return { cls: "tier-rare", name: "Rare", max: 120 };
+  return { cls: "tier-standard", name: "Standard", max: 60 };
 }
 
 function formatShort(n: number) {
@@ -78,7 +78,9 @@ function TipPage() {
   };
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-8 lg:px-12 lg:py-12">
+    <main
+      className={`relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-8 transition-colors duration-500 lg:px-12 lg:py-12 ${tier.cls}`}
+    >
       {/* Ambient background glow */}
       <div
         className="pointer-events-none absolute -left-40 top-1/2 h-[40rem] w-[40rem] -translate-y-1/2 rounded-full blur-[120px] opacity-40"
@@ -220,8 +222,8 @@ function TipPage() {
                 </span>
                 <div className="flex items-center gap-2">
                   <span className="h-2 w-2 animate-pulse rounded-full bg-primary shadow-[0_0_8px_var(--tier)]" />
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-foreground">
-                    Active
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-primary">
+                    {tier.name}
                   </span>
                 </div>
               </div>
